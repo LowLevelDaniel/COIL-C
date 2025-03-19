@@ -4,5 +4,7 @@ int main() {
 
   int x = 10;
 
-  return x;
+  x = x + 10;
+
+
 }
