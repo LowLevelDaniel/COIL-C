@@ -1,5 +1,6 @@
 /**
 * COIL Object Format (COF) writing functions
+* Strictly following the COIL 1.0.0 specification from obj.md
 */
 
 #include <stdio.h>
@@ -8,32 +9,53 @@
 #include <stdint.h>
 #include "cof.h"
 
-/* Binary format utility functions */
+/**
+* Binary format utility functions that explicitly handle endianness
+* to ensure consistent output regardless of host platform
+*/
+
 void write_u8(FILE *output, uint8_t value) {
   fwrite(&value, sizeof(uint8_t), 1, output);
 }
 
 void write_u16(FILE *output, uint16_t value) {
-  fwrite(&value, sizeof(uint16_t), 1, output);
+  // Write in little-endian format to match x86 native format
+  uint8_t bytes[2];
+  bytes[0] = value & 0xFF;
+  bytes[1] = (value >> 8) & 0xFF;
+  fwrite(bytes, 1, 2, output);
 }
 
 void write_u32(FILE *output, uint32_t value) {
-  fwrite(&value, sizeof(uint32_t), 1, output);
+  // Write in little-endian format to match x86 native format
+  uint8_t bytes[4];
+  bytes[0] = value & 0xFF;
+  bytes[1] = (value >> 8) & 0xFF;
+  bytes[2] = (value >> 16) & 0xFF;
+  bytes[3] = (value >> 24) & 0xFF;
+  fwrite(bytes, 1, 4, output);
 }
 
 void write_i32(FILE *output, int32_t value) {
-  fwrite(&value, sizeof(int32_t), 1, output);
+  write_u32(output, (uint32_t)value);
 }
 
 void write_u64(FILE *output, uint64_t value) {
-  fwrite(&value, sizeof(uint64_t), 1, output);
+  // Write in little-endian format to match x86 native format
+  uint8_t bytes[8];
+  for (int i = 0; i < 8; i++) {
+      bytes[i] = (value >> (i * 8)) & 0xFF;
+  }
+  fwrite(bytes, 1, 8, output);
 }
 
 void write_f32(FILE *output, float value) {
+  // This is potentially platform-dependent, but we'll stick with it for now
   fwrite(&value, sizeof(float), 1, output);
 }
 
 void write_f64(FILE *output, double value) {
+  // This is potentially platform-dependent, but we'll stick with it for now
   fwrite(&value, sizeof(double), 1, output);
 }
 
@@ -221,10 +243,14 @@ void generate_cof_header(FILE *output, Program *program) {
   uint32_t code_section_offset = COF_HEADER_SIZE + COF_SECTION_HEADER_SIZE;
   
   // --- Main COF Header (32 bytes) ---
+  // Follows struct cof_header in obj.md
   fseek(output, header_offset, SEEK_SET);
   
-  // Magic number: 'COIL'
-  write_u32(output, COF_MAGIC);
+  // Magic number: 'COIL' - correctly ordering bytes for spec compliance
+  // ASCII 'C'=0x43, 'O'=0x4F, 'I'=0x49, 'L'=0x4C
+  // We'll write this explicitly to ensure correct byte order
+  uint8_t magic_bytes[4] = {0x43, 0x4F, 0x49, 0x4C};
+  fwrite(magic_bytes, 1, 4, output);
   
   // Version: 1.0.0
   write_u8(output, 1);   // Major
@@ -242,19 +268,20 @@ void generate_cof_header(FILE *output, Program *program) {
   write_u32(output, 0);
   
   // String table: none for now
-  write_u32(output, 0);  // Offset
-  write_u32(output, 0);  // Size
+  write_u32(output, 0);  // Offset - should be 0 if not using string table
+  write_u32(output, 0);  // Size - should be 0 if not using string table
   
   // Symbol table: none for now
   write_u32(output, 0);  // Offset
   write_u32(output, 0);  // Size
   
-  // Padding to reach 32 bytes
+  // Padding to reach 32 bytes - exactly 8 bytes as per spec
   for (int i = 0; i < 8; i++) {
       write_u8(output, 0);
   }
   
   // --- Section Header (36 bytes) ---
+  // Follows struct cof_section_header in obj.md
   fseek(output, section_header_offset, SEEK_SET);
   
   // Section name: no name for now
@@ -294,6 +321,6 @@ void update_cof_header(FILE *output, uint32_t entrypoint, uint32_t code_size) {
   write_u32(output, code_size);
   
   // Update entrypoint
-  fseek(output, 16, SEEK_SET); // Entrypoint field in COF header
+  fseek(output, 12, SEEK_SET); // Entrypoint field in COF header
   write_u32(output, entrypoint);
 }

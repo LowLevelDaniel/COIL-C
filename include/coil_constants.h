@@ -1,10 +1,28 @@
 /**
- * COIL instruction set and format constants based on the COIL specification
+ * COIL instruction set and format constants based on the COIL 1.0.0 specification
  * Follows the ISA defined in isa.md
  */
 
 #ifndef COIL_CONSTANTS_H
 #define COIL_CONSTANTS_H
+
+/* Magic number - 'COIL' in ASCII */
+#define COF_MAGIC       0x434F494C  /* Byte sequence: 43 4F 49 4C */
+
+/* COF file structure constants */
+#define COF_HEADER_SIZE 32
+#define COF_SECTION_HEADER_SIZE 36
+
+/* COF header flags */
+#define COF_FLAG_EXECUTABLE   0x01  /* Contains an entrypoint */
+#define COF_FLAG_LINKABLE     0x02  /* Contains external references */
+#define COF_FLAG_POSITION_IND 0x04  /* Position-independent code */
+#define COF_FLAG_CONTAINS_DBG 0x08  /* Contains debug information */
+
+/* Section flags */
+#define COF_SEC_FLAG_WRITE    0x01  /* Writable section */
+#define COF_SEC_FLAG_EXEC     0x02  /* Executable section */
+#define COF_SEC_FLAG_ALLOC    0x04  /* Section occupies memory during execution */
 
 /* Opcode ranges */
 #define OPCODE_RANGE_INSTRUCTION_MIN  0x00
@@ -146,7 +164,7 @@
 #define REG_RSP  6  /* Stack pointer (aliases RQ6) */
 #define REG_RBP  7  /* Base pointer (aliases RQ7) */
 
-/* Section types */
+/* Section types from obj.md */
 #define COF_SECTION_NULL     0  /* Unused section */
 #define COF_SECTION_CODE     1  /* Executable code */
 #define COF_SECTION_DATA     2  /* Initialized data */
@@ -154,9 +172,11 @@
 #define COF_SECTION_SYMTAB   4  /* Symbol table */
 #define COF_SECTION_STRTAB   5  /* String table */
 #define COF_SECTION_RELA     6  /* Relocation entries with addends */
+#define COF_SECTION_REL      7  /* Relocation entries without addends */
 #define COF_SECTION_METADATA 8  /* Metadata */
+#define COF_SECTION_COMMENT  9  /* Comment section */
 
-/* Architecture targets */
+/* Architecture targets from obj.md */
 #define TARGET_ANY      0x0000  /* Generic, architecture-independent */
 #define TARGET_X86      0x0001  /* x86 (32-bit) */
 #define TARGET_X86_64   0x0002  /* x86-64 (64-bit) */
@@ -164,5 +184,15 @@
 #define TARGET_ARM64    0x0004  /* ARM64 (64-bit) */
 #define TARGET_RISCV32  0x0005  /* RISC-V (32-bit) */
 #define TARGET_RISCV64  0x0006  /* RISC-V (64-bit) */
+
+/* Type System - from type.md */
+#define COIL_TYPE_INT     0x00  /* Signed integer */
+#define COIL_TYPE_UINT    0x01  /* Unsigned integer */
+#define COIL_TYPE_FLOAT   0x02  /* Floating-point */
+#define COIL_TYPE_VOID    0xF0  /* Void type */
+#define COIL_TYPE_BOOL    0xF1  /* Boolean */
+#define COIL_TYPE_LINT    0xF2  /* Largest native integer */
+#define COIL_TYPE_FINT    0xF3  /* Fastest native integer */
+#define COIL_TYPE_PTR     0xF4  /* Native pointer */
 
 #endif /* COIL_CONSTANTS_H */
