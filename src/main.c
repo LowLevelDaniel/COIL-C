@@ -1,15 +1,15 @@
 /**
-* C to COIL Compiler (c2coil)
-* 
-* A basic C compiler that targets COIL v1.0.0 as its backend
-* 
-* This compiler implements:
-* - Basic C syntax parsing
-* - Symbol table management
-* - Type checking
-* - COIL instruction generation
-* - COF (COIL Object Format) output
-*/
+ * C to COIL Compiler (c2coil)
+ * 
+ * A basic C compiler that targets COIL v1.0.0 as its backend
+ * 
+ * This compiler implements:
+ * - Basic C syntax parsing
+ * - Symbol table management
+ * - Type checking
+ * - COIL instruction generation
+ * - COF (COIL Object Format) output
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,7 +134,7 @@ static void lexer_skip_comment(Lexer *lexer) {
         lexer_advance(lexer); // Skip '/'
         lexer_advance(lexer); // Skip '*'
         while (!(lexer->current == '*' && lexer->source[lexer->position + 1] == '/') && 
-            lexer->current != '\0') {
+               lexer->current != '\0') {
             if (lexer->current == '\n') {
                 lexer->line++;
             }
@@ -309,7 +309,7 @@ Token lexer_next_token(Lexer *lexer) {
     lexer_skip_whitespace(lexer);
     
     while (lexer->current == '/' && (lexer->source[lexer->position + 1] == '/' || 
-                                    lexer->source[lexer->position + 1] == '*')) {
+                                     lexer->source[lexer->position + 1] == '*')) {
         lexer_skip_comment(lexer);
         lexer_skip_whitespace(lexer);
     }
@@ -867,8 +867,8 @@ static Expression *parse_multiplicative_expression(Parser *parser) {
     Expression *expr = parse_unary_expression(parser);
     
     while (parser->current_token.type == TOKEN_MULTIPLY ||
-        parser->current_token.type == TOKEN_DIVIDE ||
-        parser->current_token.type == TOKEN_MODULO) {
+           parser->current_token.type == TOKEN_DIVIDE ||
+           parser->current_token.type == TOKEN_MODULO) {
         TokenType op = parser->current_token.type;
         parser_consume(parser);
         
@@ -897,7 +897,7 @@ static Expression *parse_additive_expression(Parser *parser) {
     Expression *expr = parse_multiplicative_expression(parser);
     
     while (parser->current_token.type == TOKEN_PLUS ||
-        parser->current_token.type == TOKEN_MINUS) {
+           parser->current_token.type == TOKEN_MINUS) {
         TokenType op = parser->current_token.type;
         parser_consume(parser);
         
@@ -926,9 +926,9 @@ static Expression *parse_relational_expression(Parser *parser) {
     Expression *expr = parse_additive_expression(parser);
     
     while (parser->current_token.type == TOKEN_LT ||
-        parser->current_token.type == TOKEN_LE ||
-        parser->current_token.type == TOKEN_GT ||
-        parser->current_token.type == TOKEN_GE) {
+           parser->current_token.type == TOKEN_LE ||
+           parser->current_token.type == TOKEN_GT ||
+           parser->current_token.type == TOKEN_GE) {
         TokenType op = parser->current_token.type;
         parser_consume(parser);
         
@@ -953,7 +953,7 @@ static Expression *parse_equality_expression(Parser *parser) {
     Expression *expr = parse_relational_expression(parser);
     
     while (parser->current_token.type == TOKEN_EQ ||
-        parser->current_token.type == TOKEN_NEQ) {
+           parser->current_token.type == TOKEN_NEQ) {
         TokenType op = parser->current_token.type;
         parser_consume(parser);
         
@@ -1408,295 +1408,161 @@ void write_string(FILE *output, const char *str) {
     fwrite(str, sizeof(char), len, output);
 }
 
-// COIL instruction encoding functions
+// COIL binary instruction format helpers
+// These helpers ensure we're following the format exactly
+
+// Write a complete instruction with operands
+void emit_instruction(FILE *output, uint8_t opcode, uint8_t qualifier, uint8_t operand_count) {
+    write_u8(output, opcode);
+    write_u8(output, qualifier);
+    write_u8(output, operand_count);
+}
+
+// Write a register operand
+void emit_register_operand(FILE *output, uint8_t type, uint8_t width, uint8_t reg_num) {
+    write_u8(output, 0x03); // OPQUAL_REG
+    write_u8(output, type); // Type (e.g., COIL_TYPE_INT)
+    write_u8(output, width); // Width in bytes
+    write_u8(output, reg_num); // Register number
+}
+
+// Write an immediate operand (32-bit)
+void emit_immediate_operand_i32(FILE *output, uint8_t type, int32_t value) {
+    write_u8(output, 0x01); // OPQUAL_IMM
+    write_u8(output, type); // Type (e.g., COIL_TYPE_INT)
+    write_u8(output, 0x04); // 32-bit
+    write_i32(output, value); // Value
+}
+
+// Write a label operand
+void emit_label_operand(FILE *output, int label) {
+    write_u8(output, 0x05); // OPQUAL_LBL
+    write_u8(output, 0xF0); // COIL_TYPE_VOID
+    write_u8(output, 0x00); // No additional type info
+    write_i32(output, label); // Label identifier
+}
+
+// Write a symbol operand
+void emit_symbol_operand(FILE *output, const char *name) {
+    write_u8(output, 0x07); // OPQUAL_SYM
+    write_u8(output, 0xF0); // COIL_TYPE_VOID
+    write_u8(output, 0x00); // No additional type info
+    write_string(output, name); // Symbol name
+}
+
+// Write a memory operand
+void emit_memory_operand(FILE *output, uint8_t type, uint8_t width, uint8_t base_reg, int32_t offset) {
+    write_u8(output, 0x04); // OPQUAL_MEM
+    write_u8(output, type); // Type (e.g., COIL_TYPE_INT)
+    write_u8(output, width); // Width in bytes
+    write_u8(output, base_reg); // Base register
+    write_i32(output, offset); // Offset
+}
+
+// COIL instruction emitters using the new helper functions
 void emit_nop(FILE *output) {
-    write_u8(output, 0x00); // NOP opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x00); // operand count
+    emit_instruction(output, 0x00, 0x00, 0x00); // NOP with no operands
 }
 
 void emit_mov(FILE *output, uint8_t dest_reg, uint8_t src_reg) {
-    write_u8(output, 0x40); // MOV opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x02); // 2 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src_reg); // Register number
+    emit_instruction(output, 0x40, 0x00, 0x02); // MOV with 2 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src_reg); // Source register (32-bit int)
 }
 
 void emit_movi(FILE *output, uint8_t dest_reg, int32_t value) {
-    write_u8(output, 0x45); // MOVI opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x02); // 2 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source operand (immediate)
-    write_u8(output, 0x01); // OPQUAL_IMM
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_i32(output, value); // Immediate value
+    emit_instruction(output, 0x45, 0x00, 0x02); // MOVI with 2 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_immediate_operand_i32(output, 0x00, value); // Immediate value (32-bit int)
 }
 
 void emit_add(FILE *output, uint8_t dest_reg, uint8_t src1_reg, uint8_t src2_reg) {
-    write_u8(output, 0x10); // ADD opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x03); // 3 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source 1 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src1_reg); // Register number
-    
-    // Source 2 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src2_reg); // Register number
+    emit_instruction(output, 0x10, 0x00, 0x03); // ADD with 3 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src1_reg); // Source1 register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src2_reg); // Source2 register (32-bit int)
 }
 
 void emit_sub(FILE *output, uint8_t dest_reg, uint8_t src1_reg, uint8_t src2_reg) {
-    write_u8(output, 0x11); // SUB opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x03); // 3 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source 1 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src1_reg); // Register number
-    
-    // Source 2 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src2_reg); // Register number
+    emit_instruction(output, 0x11, 0x00, 0x03); // SUB with 3 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src1_reg); // Source1 register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src2_reg); // Source2 register (32-bit int)
 }
 
 void emit_mul(FILE *output, uint8_t dest_reg, uint8_t src1_reg, uint8_t src2_reg) {
-    write_u8(output, 0x12); // MUL opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x03); // 3 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source 1 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src1_reg); // Register number
-    
-    // Source 2 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src2_reg); // Register number
+    emit_instruction(output, 0x12, 0x00, 0x03); // MUL with 3 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src1_reg); // Source1 register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src2_reg); // Source2 register (32-bit int)
 }
 
 void emit_div(FILE *output, uint8_t dest_reg, uint8_t src1_reg, uint8_t src2_reg) {
-    write_u8(output, 0x13); // DIV opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x03); // 3 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source 1 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src1_reg); // Register number
-    
-    // Source 2 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src2_reg); // Register number
+    emit_instruction(output, 0x13, 0x00, 0x03); // DIV with 3 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src1_reg); // Source1 register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src2_reg); // Source2 register (32-bit int)
 }
 
 void emit_cmp(FILE *output, uint8_t src1_reg, uint8_t src2_reg) {
-    write_u8(output, 0x30); // CMP opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x02); // 2 operands
-    
-    // Source 1 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src1_reg); // Register number
-    
-    // Source 2 operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src2_reg); // Register number
+    emit_instruction(output, 0x30, 0x00, 0x02); // CMP with 2 operands
+    emit_register_operand(output, 0x00, 0x04, src1_reg); // Source1 register (32-bit int)
+    emit_register_operand(output, 0x00, 0x04, src2_reg); // Source2 register (32-bit int)
 }
 
 void emit_jmp(FILE *output, int label) {
-    write_u8(output, 0x02); // BR opcode (unconditional branch)
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Label operand
-    write_u8(output, 0x05); // OPQUAL_LBL
-    write_u8(output, 0xF0); // COIL_TYPE_VOID
-    write_u8(output, 0x00); // No type info
-    write_i32(output, label); // Label number
+    emit_instruction(output, 0x02, 0x00, 0x01); // BR (unconditional branch) with 1 operand
+    emit_label_operand(output, label); // Label operand
 }
 
 void emit_jcc(FILE *output, uint8_t condition, int label) {
-    write_u8(output, 0x03); // BRC opcode (conditional branch)
-    write_u8(output, condition); // condition qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Label operand
-    write_u8(output, 0x05); // OPQUAL_LBL
-    write_u8(output, 0xF0); // COIL_TYPE_VOID
-    write_u8(output, 0x00); // No type info
-    write_i32(output, label); // Label number
+    emit_instruction(output, 0x03, condition, 0x01); // BRC (conditional branch) with 1 operand
+    emit_label_operand(output, label); // Label operand
 }
 
 void emit_call(FILE *output, const char *function_name) {
-    write_u8(output, 0x04); // CALL opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Function name operand
-    write_u8(output, 0x07); // OPQUAL_SYM
-    write_u8(output, 0xF0); // COIL_TYPE_VOID
-    write_u8(output, 0x00); // No type info
-    write_string(output, function_name); // Function name
+    emit_instruction(output, 0x04, 0x00, 0x01); // CALL with 1 operand
+    emit_symbol_operand(output, function_name); // Function name operand
 }
 
 void emit_ret(FILE *output) {
-    write_u8(output, 0x05); // RET opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x00); // 0 operands
+    emit_instruction(output, 0x05, 0x00, 0x00); // RET with no operands
 }
 
 void emit_load(FILE *output, uint8_t dest_reg, uint8_t addr_reg, int offset) {
-    write_u8(output, 0x41); // LOAD opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x02); // 2 operands
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
-    
-    // Source operand (memory)
-    write_u8(output, 0x04); // OPQUAL_MEM
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, addr_reg); // Base register
-    write_i32(output, offset); // Offset
+    emit_instruction(output, 0x41, 0x00, 0x02); // LOAD with 2 operands
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
+    emit_memory_operand(output, 0x00, 0x04, addr_reg, offset); // Memory address
 }
 
 void emit_store(FILE *output, uint8_t src_reg, uint8_t addr_reg, int offset) {
-    write_u8(output, 0x42); // STORE opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x02); // 2 operands
-    
-    // Source operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src_reg); // Register number
-    
-    // Destination operand (memory)
-    write_u8(output, 0x04); // OPQUAL_MEM
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, addr_reg); // Base register
-    write_i32(output, offset); // Offset
+    emit_instruction(output, 0x42, 0x00, 0x02); // STORE with 2 operands
+    emit_register_operand(output, 0x00, 0x04, src_reg); // Source register (32-bit int)
+    emit_memory_operand(output, 0x00, 0x04, addr_reg, offset); // Memory address
 }
 
 void emit_push(FILE *output, uint8_t src_reg) {
-    write_u8(output, 0x50); // PUSH opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Source operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, src_reg); // Register number
+    emit_instruction(output, 0x50, 0x00, 0x01); // PUSH with 1 operand
+    emit_register_operand(output, 0x00, 0x04, src_reg); // Source register (32-bit int)
 }
 
 void emit_pop(FILE *output, uint8_t dest_reg) {
-    write_u8(output, 0x51); // POP opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Destination operand (register)
-    write_u8(output, 0x03); // OPQUAL_REG
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_u8(output, dest_reg); // Register number
+    emit_instruction(output, 0x51, 0x00, 0x01); // POP with 1 operand
+    emit_register_operand(output, 0x00, 0x04, dest_reg); // Destination register (32-bit int)
 }
 
 void emit_enter(FILE *output, int frame_size) {
-    write_u8(output, 0xC0); // ENTER opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Frame size operand
-    write_u8(output, 0x01); // OPQUAL_IMM
-    write_u8(output, 0x00); // COIL_TYPE_INT
-    write_u8(output, 0x04); // 32-bit
-    write_i32(output, frame_size); // Frame size value
+    emit_instruction(output, 0xC0, 0x00, 0x01); // ENTER with 1 operand
+    emit_immediate_operand_i32(output, 0x00, frame_size); // Frame size
 }
 
 void emit_leave(FILE *output) {
-    write_u8(output, 0xC1); // LEAVE opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x00); // 0 operands
+    emit_instruction(output, 0xC1, 0x00, 0x00); // LEAVE with no operands
 }
 
 void emit_label(FILE *output, int label) {
-    write_u8(output, 0x01); // SYMB opcode
-    write_u8(output, 0x00); // qualifier
-    write_u8(output, 0x01); // 1 operand
-    
-    // Label operand
-    write_u8(output, 0x05); // OPQUAL_LBL
-    write_u8(output, 0xF0); // COIL_TYPE_VOID
-    write_u8(output, 0x00); // No type info
-    write_i32(output, label); // Label number
+    emit_instruction(output, 0x01, 0x00, 0x01); // SYMB with 1 operand
+    emit_label_operand(output, label); // Label operand
 }
 
 // Code generation for expressions
@@ -1905,7 +1771,7 @@ void generate_statement(CodeGenerator *generator, Statement *stmt) {
             
             // Add the variable to the symbol table
             symbol_table_add(generator->current_scope, stmt->value.declaration.name, 
-                            stmt->value.declaration.type, offset);
+                             stmt->value.declaration.type, offset);
             
             // Initialize the variable if needed
             if (stmt->value.declaration.initializer != NULL) {
@@ -1938,7 +1804,7 @@ void generate_function(CodeGenerator *generator, Function *function) {
         // Parameters are at positive offsets from the base pointer
         int offset = (i + 1) * 4; // Assuming 32-bit parameters
         symbol_table_add(generator->current_scope, function->parameter_names[i], 
-                        function->parameter_types[i], offset);
+                         function->parameter_types[i], offset);
     }
     
     // Begin function
@@ -1962,7 +1828,7 @@ void generate_function(CodeGenerator *generator, Function *function) {
     // Add implicit return if the function doesn't already have one
     if (function->body->type == STMT_BLOCK && 
         (function->body->value.block.statement_count == 0 || 
-        function->body->value.block.statements[function->body->value.block.statement_count - 1]->type != STMT_RETURN)) {
+         function->body->value.block.statements[function->body->value.block.statement_count - 1]->type != STMT_RETURN)) {
         emit_leave(output);
         emit_ret(output);
     }
@@ -1971,66 +1837,94 @@ void generate_function(CodeGenerator *generator, Function *function) {
     generator->current_scope = old_scope;
 }
 
+// Constants for COF file structure
+#define COF_HEADER_SIZE 32
+#define COF_SECTION_HEADER_SIZE 36
+
+// Section types
+#define COF_SECTION_NULL 0
+#define COF_SECTION_CODE 1
+#define COF_SECTION_DATA 2
+#define COF_SECTION_BSS 3
+
+// Section flags
+#define COF_SEC_FLAG_WRITE 0x01
+#define COF_SEC_FLAG_EXEC 0x02
+#define COF_SEC_FLAG_ALLOC 0x04
+
 // Generate COIL Object Format (COF) header and section headers
 void generate_cof_header(FILE *output, Program *program) {
-    // Calculate file sections and offsets
-    uint32_t header_size = 32; // Main COF header size
-    uint32_t section_header_size = 36; // Size of one section header
-    uint32_t code_section_offset = header_size + section_header_size; // Code starts after headers
+    // First pass - just write placeholders for everything
+    // We'll come back and update them later
     
-    // Record current position to calculate code size later
-    long header_pos = ftell(output);
+    // Remember starting position
+    long start_pos = ftell(output);
     
-    // COF header
-    write_u32(output, 0x434F494C); // 'COIL' magic number
-    write_u8(output, 1); // Major version
-    write_u8(output, 0); // Minor version
-    write_u8(output, 0); // Patch version
-    write_u8(output, 0x01); // COF_FLAG_EXECUTABLE
-    write_u16(output, 0x0002); // TARGET_X86_64
-    write_u16(output, 1); // 1 section (code section)
+    // Calculate offsets
+    uint32_t header_offset = 0;
+    uint32_t section_header_offset = COF_HEADER_SIZE;
+    uint32_t code_section_offset = COF_HEADER_SIZE + COF_SECTION_HEADER_SIZE;
     
-    // Find main function for entrypoint
-    uint32_t entrypoint = 0;
-    for (int i = 0; i < program->function_count; i++) {
-        if (strcmp(program->functions[i]->name, "main") == 0) {
-            entrypoint = code_section_offset; // Code starts right after section header
-            break;
-        }
-    }
+    // --- Main COF Header (32 bytes) ---
+    fseek(output, header_offset, SEEK_SET);
     
-    write_u32(output, entrypoint); // Entrypoint offset
-    write_u32(output, 0); // String table offset (none for now)
-    write_u32(output, 0); // String table size
-    write_u32(output, 0); // Symbol table offset (none for now)
-    write_u32(output, 0); // Symbol table size
+    // Magic number: 'COIL'
+    write_u32(output, 0x434F494C);
     
-    // Padding
+    // Version: 1.0.0
+    write_u8(output, 1);   // Major
+    write_u8(output, 0);   // Minor
+    write_u8(output, 0);   // Patch
+    write_u8(output, 0x01); // Flags: COF_FLAG_EXECUTABLE
+    
+    // Architecture target: x86-64
+    write_u16(output, 0x0002);
+    
+    // Section count: 1 (just code for now)
+    write_u16(output, 1);
+    
+    // Entrypoint: we'll update this after finding main()
+    write_u32(output, 0);
+    
+    // String table: none for now
+    write_u32(output, 0);  // Offset
+    write_u32(output, 0);  // Size
+    
+    // Symbol table: none for now
+    write_u32(output, 0);  // Offset
+    write_u32(output, 0);  // Size
+    
+    // Padding to reach 32 bytes
     for (int i = 0; i < 8; i++) {
         write_u8(output, 0);
     }
     
-    // Now write the section header for the code section
-    // We'll use a temporary 0 for the size and fix it at the end
-    long section_header_pos = ftell(output);
+    // --- Section Header (36 bytes) ---
+    fseek(output, section_header_offset, SEEK_SET);
     
-    write_u32(output, 0); // name_offset - no name in string table yet
-    write_u32(output, 1); // type - COF_SECTION_CODE
-    write_u32(output, 0x06); // flags - COF_SEC_FLAG_EXEC | COF_SEC_FLAG_ALLOC
-    write_u32(output, code_section_offset); // offset from start of file
-    write_u32(output, 0); // size - placeholder, will update later
-    write_u32(output, 0); // link - no associated section
-    write_u32(output, 0); // info - no additional info
-    write_u32(output, 4); // alignment - 4 byte alignment
-    write_u32(output, 0); // entsize - not a table section
+    // Section name: no name for now
+    write_u32(output, 0);
     
-    // Record the start of the code section
-    long code_section_start = ftell(output);
+    // Section type: CODE
+    write_u32(output, COF_SECTION_CODE);
     
-    // We'll return to this position to update the size after generating all code
-    fpos_t code_size_pos;
-    fgetpos(output, &code_size_pos);
-    code_size_pos.__pos -= 24; // Move back to the size field in the section header
+    // Section flags: EXEC | ALLOC
+    write_u32(output, COF_SEC_FLAG_EXEC | COF_SEC_FLAG_ALLOC);
+    
+    // Section offset: starts right after section header
+    write_u32(output, code_section_offset);
+    
+    // Section size: placeholder, we'll update this later
+    write_u32(output, 0);
+    
+    // No link, info, or specific alignment requirements
+    write_u32(output, 0);  // Link
+    write_u32(output, 0);  // Info
+    write_u32(output, 4);  // Alignment (4-byte)
+    write_u32(output, 0);  // Entry size (not a table)
+    
+    // Move to the start of the code section
+    fseek(output, code_section_offset, SEEK_SET);
 }
 
 // Generate the entire COIL program
@@ -2041,35 +1935,53 @@ void generate_program(Program *program, const char *output_file) {
         exit(1);
     }
     
-    CodeGenerator generator;
-    generator_init(&generator, output);
-    
-    // Generate COF header and section header
+    // Write initial headers with placeholders
     generate_cof_header(output, program);
     
-    // Remember position where code starts
+    // Remember where the code section starts
     long code_start_pos = ftell(output);
+    
+    // Generate code
+    CodeGenerator generator;
+    generator_init(&generator, output);
     
     // Generate code for each function
     for (int i = 0; i < program->function_count; i++) {
         generate_function(&generator, program->functions[i]);
     }
     
-    // Calculate code section size and update section header
+    // End position after all code
     long code_end_pos = ftell(output);
     uint32_t code_size = (uint32_t)(code_end_pos - code_start_pos);
     
-    // Go back to update the section size in the section header
-    fseek(output, 32 + 16, SEEK_SET); // 32 bytes for main header + 16 bytes to section size field
+    // Find entrypoint (main function)
+    uint32_t entrypoint = 0;
+    for (int i = 0; i < program->function_count; i++) {
+        if (strcmp(program->functions[i]->name, "main") == 0) {
+            // Main is at the code start + its offset in the generated code
+            // For simplicity in this demo, we'll just use the start of the code section
+            entrypoint = COF_HEADER_SIZE + COF_SECTION_HEADER_SIZE;
+            break;
+        }
+    }
+    
+    // Update section size
+    fseek(output, COF_HEADER_SIZE + 16, SEEK_SET); // Size field in section header
     write_u32(output, code_size);
     
-    // Return to the end of the file
-    fseek(output, 0, SEEK_END);
+    // Update entrypoint
+    fseek(output, 16, SEEK_SET); // Entrypoint field in COF header
+    write_u32(output, entrypoint);
     
+    // Done
     fclose(output);
     
-    printf("Generated COIL binary: %s (%u bytes, code section: %u bytes)\n", 
-        output_file, (unsigned int)code_end_pos, code_size);
+    printf("Generated COIL binary: %s (%lu bytes)\n", 
+           output_file, (unsigned long)(code_end_pos));
+    printf("- Header size: %d bytes\n", COF_HEADER_SIZE);
+    printf("- Section header size: %d bytes\n", COF_SECTION_HEADER_SIZE);
+    printf("- Code size: %u bytes\n", code_size);
+    printf("- Entrypoint: 0x%08X\n", entrypoint);
 }
 
 /* ========== Main ========== */
