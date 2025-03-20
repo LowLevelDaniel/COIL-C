@@ -104,4 +104,13 @@ bool symbol_table_exists(SymbolTable *table, const char *name);
  */
 int symbol_table_variable_count(SymbolTable *table);
 
+/**
+ * @brief Check if a name is already defined in the current scope
+ * 
+ * @param table The symbol table
+ * @param name Symbol name
+ * @return true if the name is already defined, false otherwise
+ */
+ bool symbol_table_exists(SymbolTable *table, const char *name);
+
 #endif /* SYMBOL_H */

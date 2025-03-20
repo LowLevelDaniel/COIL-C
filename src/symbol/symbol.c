@@ -191,3 +191,28 @@ void symbol_table_free(SymbolTable *table) {
     free(table->symbols);
     free(table);
 }
+
+/**
+ * @brief Check if a name is already defined in the current scope
+ * 
+ * @param table The symbol table
+ * @param name Symbol name
+ * @return true if the name is already defined, false otherwise
+ */
+bool symbol_table_exists(SymbolTable *table, const char *name) {
+  int i;
+  
+  /* Validate input parameters */
+  if (table == NULL || name == NULL) {
+    return false;
+  }
+  
+  /* Check each symbol in the current scope */
+  for (i = 0; i < table->symbol_count; i++) {
+    if (strcmp(table->symbols[i]->name, name) == 0) {
+      return true;
+    }
+  }
+  
+  return false;
+}
