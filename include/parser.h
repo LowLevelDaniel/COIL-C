@@ -1,74 +1,81 @@
 /**
  * @file parser.h
- * @brief Parser for the COIL C Compiler
- *
- * Defines the parser that converts tokens into an Abstract Syntax Tree (AST).
+ * @brief Parser for C source code
  */
 
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "lexer.h"
 #include "ast.h"
+#include "lexer.h"
+
+// Forward declaration for Arena
+struct Arena;
 
 /**
- * Parser state for building an AST from tokens
+ * @brief Parser state for parsing C source code
  */
 typedef struct {
-    Lexer *lexer;            /**< Lexer for getting tokens */
-    Token current_token;     /**< Current token being processed */
-    Token previous_token;    /**< Previous token (for error reporting) */
-    bool had_error;          /**< Whether an error occurred during parsing */
-    char *error_message;     /**< Error message if an error occurred */
+  Lexer* lexer;
+  struct Arena* arena;
+  Program* program;
+  
+  // Symbol table for typedefs
+  struct SymbolTable* typedefs;
+  
+  // Error handling
+  bool has_error;
+  char* error_message;
 } Parser;
 
 /**
- * Initialize a parser with a lexer
- * @param parser Pointer to the parser to initialize
- * @param lexer Lexer to use for getting tokens
+ * @brief Initialize a parser for the given lexer
+ * @param lexer The lexer to parse tokens from
+ * @param arena Memory arena for allocations
+ * @return New parser instance
  */
-void parser_init(Parser *parser, Lexer *lexer);
+Parser* parser_create(Lexer* lexer, struct Arena* arena);
 
 /**
- * Parse a complete C program
- * @param lexer The lexer to read tokens from
- * @return The parsed program AST, or NULL if parsing failed
+ * @brief Parse a complete C program
+ * @param parser The parser to use
+ * @return The parsed program AST
  */
-Program *parse_program(Lexer *lexer);
+Program* parser_parse_program(Parser* parser);
 
 /**
- * Parse a single type specifier
- * @param parser The parser
- * @return The parsed type
+ * @brief Parse a single declaration
+ * @param parser The parser to use
+ * @return The parsed declaration AST node
  */
-Type *parse_type(Parser *parser);
+Decl* parser_parse_declaration(Parser* parser);
 
 /**
- * Free parser resources
- * @param parser The parser to free
+ * @brief Parse a statement
+ * @param parser The parser to use
+ * @return The parsed statement AST node
  */
-void parser_free(Parser *parser);
+Stmt* parser_parse_statement(Parser* parser);
 
 /**
- * Check if the parser encountered an error
- * @param parser The parser
- * @return true if an error occurred, false otherwise
+ * @brief Parse an expression
+ * @param parser The parser to use
+ * @return The parsed expression AST node
  */
-bool parser_had_error(Parser *parser);
+Expr* parser_parse_expression(Parser* parser);
 
 /**
- * Get the parser's error message
- * @param parser The parser
- * @return The error message or NULL if no error occurred
+ * @brief Parse a type
+ * @param parser The parser to use
+ * @return The parsed type AST node
  */
-const char *parser_get_error(Parser *parser);
+Type* parser_parse_type(Parser* parser);
 
 /**
- * Create a formatted error message
- * @param parser The parser
- * @param format Format string (printf style)
- * @param ... Additional arguments for format string
+ * @brief Get a descriptive error message if there was an error
+ * @param parser The parser with the error
+ * @return Error message or NULL if no error
  */
-void parser_error(Parser *parser, const char *format, ...);
+const char* parser_error(Parser* parser);
 
 #endif /* PARSER_H */
